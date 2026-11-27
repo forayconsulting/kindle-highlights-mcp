@@ -132,4 +132,8 @@ For `npm run dev`, apply the migration to the local database once: `npx wrangler
 
 ## Credits
 
-The device-registration flow is ported from [moifort/kindle-api-ts](https://github.com/moifort/kindle-api-ts) and the Cloud Reader client from [minholi/omakindle](https://github.com/minholi/omakindle), both MIT licensed.
+The device-registration flow is ported from [moifort/kindle-api-ts](https://github.com/moifort/kindle-api-ts) and the Cloud Reader client from [minholi/omakindle](https://github.com/minholi/omakindle), both MIT licensed. Their notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## License
+
+[MIT](LICENSE)
