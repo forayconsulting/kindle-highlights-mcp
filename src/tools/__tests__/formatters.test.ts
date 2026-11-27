@@ -112,6 +112,7 @@ describe("formatSyncResult", () => {
 			newHighlights: 3,
 			changedBooks: ["Outlive"],
 			commit: "abcdef1234567",
+			indexed: 0,
 			errors: ["Some Book: Amazon answered 500"],
 		});
 		expect(out).toContain(

@@ -6,3 +6,4 @@ dist/
 .spike-credentials.json
 wrangler.local.jsonc
 .playwright-cli/
+.explore/

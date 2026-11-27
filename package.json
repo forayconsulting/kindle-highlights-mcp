@@ -12,7 +12,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --fix .",
     "typecheck": "tsc --noEmit",
-    "spike": "tsx scripts/spike.ts"
+    "spike": "tsx scripts/spike.ts",
+		"explore": "tsx scripts/explore.ts"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",

@@ -349,6 +349,10 @@ describe("Store queries", () => {
 		).toEqual(["On memory palaces", "Unrelated"]);
 		expect((await store.findBooks("one")).map((b) => b.asin)).toEqual(["B1"]);
 		expect((await store.findBooks("B2")).map((b) => b.asin)).toEqual(["B2"]);
-		expect(await store.totals()).toEqual({ books: 2, highlights: 3 });
+		expect(await store.totals()).toEqual({
+			books: 2,
+			highlights: 3,
+			indexed: 0,
+		});
 	});
 });

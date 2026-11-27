@@ -16,7 +16,7 @@ import {
 	type StartReading,
 } from "./types";
 
-const CLIENT_VERSION = "20000100";
+export const CLIENT_VERSION = "20000100";
 /**
  * Amazon's device type for the Kindle Cloud Reader. getDeviceToken accepts it
  * as both serialNumber and deviceType, and refuses the registered device's
@@ -112,6 +112,23 @@ export class CloudReader {
 				`Amazon answered ${response.status} for ${new URL(request.url).pathname}: ${response.body.slice(0, 200)}`,
 				response.status,
 			);
+		}
+		return response;
+	}
+
+	/**
+	 * Send a request with this session's cookies and headers and return the
+	 * answer as is, whatever its status. For probing endpoints this client
+	 * does not model.
+	 */
+	async raw(request: HttpRequest, adp = false): Promise<HttpResponse> {
+		if (adp) await this.ensureDevice();
+		const response = await this.transport.send({
+			...request,
+			headers: { ...this.headers(adp), ...request.headers },
+		});
+		for (const { name, value } of response.setCookies) {
+			this.cookies.set(name, value);
 		}
 		return response;
 	}
