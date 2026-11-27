@@ -1,0 +1,3 @@
+API_SECRET=replace-with-random-uuid
+# Fine-grained token: contents read/write on your notes repo only. Optional.
+GITHUB_TOKEN=

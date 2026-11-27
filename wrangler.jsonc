@@ -1,0 +1,56 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kindle-highlights-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Create with: wrangler kv namespace create KINDLE_KV / KINDLE_OAUTH_KV
+  "kv_namespaces": [
+    { "binding": "KINDLE_KV", "id": "REPLACE_WITH_KINDLE_KV_ID" },
+    { "binding": "OAUTH_KV", "id": "REPLACE_WITH_OAUTH_KV_ID" }
+  ],
+
+  // Create with: wrangler d1 create kindle-highlights
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kindle-highlights",
+      "database_id": "REPLACE_WITH_D1_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "MCP_OBJECT", "class_name": "KindleMCP" }
+      // Fetch proxy: uncomment with the "containers" block and the v2 migration below.
+      // ,{ "name": "FETCH_PROXY", "class_name": "FetchProxy" }
+    ]
+  },
+
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["KindleMCP"] }
+    // ,{ "tag": "v2", "new_sqlite_classes": ["FetchProxy"] }
+  ],
+
+  // Only needed if read.amazon.com refuses the Worker's own fetch
+  // (check /debug/{API_SECRET}/probe first). Requires Workers Paid and Docker at deploy time.
+  // "containers": [
+  //   { "class_name": "FetchProxy", "image": "./container/Dockerfile", "max_instances": 1 }
+  // ],
+
+  // 10:17 UTC daily (early morning US Pacific)
+  "triggers": { "crons": ["17 10 * * *"] },
+
+  "vars": {
+    "TIMEZONE": "America/Los_Angeles",
+    "GITHUB_REPO": "your-github-user/your-notes-repo",
+    "GITHUB_BRANCH": "main",
+    "SYNC_BATCH_SIZE": "25"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
