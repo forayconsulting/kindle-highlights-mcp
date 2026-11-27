@@ -9,6 +9,126 @@ Amazon has no public API for highlights. The server uses two private ones:
 
 This is unofficial. It may violate Amazon's terms, and it can break when Amazon changes either API. The refresh token is a standing grant on your Amazon account. The server stores it in the `KINDLE_KV` namespace.
 
+## How it works
+
+### What it looks like in Claude
+
+Once the connector is added, you ask Claude about your reading in plain language, and Claude calls the tools. The examples below use sample highlights from two public-domain books. The text is what the server's own formatters return for that data.
+
+You ask: *Which books do I have highlights in?* Claude calls `list_books`:
+
+```text
+2 books with highlights:
+- Walden by Henry David Thoreau — 3 highlights [asin: B000EXAMPLE1, synced 2026-03-14]
+- Essays: First Series by Ralph Waldo Emerson — 1 highlight [asin: B000EXAMPLE2, synced 2026-03-14]
+```
+
+You ask: *What have I highlighted about life?* Claude calls `search_highlights` with the query `life`:
+
+```text
+Highlights matching "life": 2
+
+"I went to the woods because I wished to live deliberately, to front only the essential facts of life, and see if I could not learn what it had to teach, and not, when I came to die, discover that I had not lived."
+Note: Compare with the opening of the Economy chapter.
+(loc 1203, 2026-03-09, yellow)
+— Walden, Henry David Thoreau
+
+"Our life is frittered away by detail."
+(loc 1221, 2026-03-09, yellow)
+— Walden, Henry David Thoreau
+```
+
+Each result carries the Kindle location, the date, the highlight color, and any note you typed on the device.
+
+### What lands in your GitHub repo
+
+If you turn on the GitHub commit, each changed book becomes one markdown file. This is `walden/highlights.md` for the same sample data:
+
+```markdown
+# Walden
+
+*Henry David Thoreau*
+
+3 highlights · ASIN B000EXAMPLE1
+
+---
+
+> The mass of men lead lives of quiet desperation.
+
+<sub>Location 112 · 2026-03-02</sub>
+
+---
+
+> I went to the woods because I wished to live deliberately, to front only the essential facts of life, and see if I could not learn what it had to teach, and not, when I came to die, discover that I had not lived.
+
+**Note:** Compare with the opening of the Economy chapter.
+
+<sub>Location 1203 · 2026-03-09</sub>
+
+---
+
+> Our life is frittered away by detail.
+
+<sub>Location 1221 · 2026-03-09</sub>
+```
+
+The folder name comes from the book's title. The real file also has a one-line comment saying that the next sync overwrites it.
+
+### The parts
+
+```mermaid
+flowchart TD
+    You["You, in Claude"] -->|"ask about your reading"| Claude["Claude"]
+    Claude -->|"MCP tool call with an OAuth token"| Worker["Cloudflare Worker<br>MCP server"]
+    Access["Cloudflare Access<br>checks who you are"] -->|"guards /authorize only"| Worker
+    Worker -->|"read highlights"| D1[("D1 database<br>books and highlights")]
+    Cron["Daily cron<br>10:17 UTC"] --> Sync["Sync job"]
+    Worker -->|"sync_now"| Sync
+    Sync -->|"refresh token to cookies"| Amazon["amazon.com"]
+    Sync -->|"library, annotations, full text"| Reader["read.amazon.com<br>Kindle Cloud Reader"]
+    Sync -->|"store what changed"| D1
+    Sync -->|"one commit per run, optional"| GitHub["Your GitHub repo<br>book/highlights.md"]
+    KV[("KV<br>Amazon refresh token")] --> Sync
+```
+
+- **The Worker** is one Cloudflare Worker. It serves the MCP endpoint at `/mcp`, runs the OAuth flow for the connector, and runs the sync job.
+- **The read tools never call Amazon.** `list_books`, `get_highlights`, `search_highlights`, and `recent_highlights` read the D1 database, so they answer fast and keep working when Amazon is unreachable.
+- **Only sync calls Amazon.** It runs on the daily cron, or when Claude calls `sync_now`.
+
+### One sync run
+
+```mermaid
+sequenceDiagram
+    participant S as Sync job
+    participant A as amazon.com
+    participant R as read.amazon.com
+    participant D as D1 database
+    participant G as GitHub
+    S->>A: exchange refresh token
+    A-->>S: fresh session cookies
+    S->>R: list the library, most recent first
+    S->>R: open a reader session (getDeviceToken)
+    loop each book in this run's batch
+        S->>R: startReading, then getAnnotations
+        R-->>S: highlights and notes, long ones as previews
+        S->>R: copyText for each new preview
+        R-->>S: the full passage
+        S->>D: insert, update, and delete rows
+    end
+    S->>G: commit every changed book in one commit
+```
+
+The batch is the 5 most recently read books plus the next slice of a slow sweep through the rest of the library. A book you are reading now is checked every day. An older book is checked once per sweep, and a sweep takes several days for a large library.
+
+### Two separate sign-ins
+
+The server keeps two kinds of access apart.
+
+- **Claude to the Worker.** Claude holds an OAuth token that the Worker issued. To get one, your browser passes through Cloudflare Access on `/authorize`, which checks that you are you. Anyone else is stopped at the Access login.
+- **The Worker to Amazon.** The Worker holds an Amazon refresh token from a one-time device registration. Claude never sees it. The registration page and the debug pages sit behind `API_SECRET`.
+
+Removing the device from your Amazon account cuts off the second one. Revoking the connector in Claude cuts off the first.
+
 ## Status
 
 The server has run against a real amazon.com account, both from a laptop and from a deployed Worker. These points were checked:
