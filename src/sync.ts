@@ -13,6 +13,7 @@ import {
 	loadCursor,
 	saveCursor,
 } from "./auth";
+import { indexPending } from "./embed";
 import { commitFiles, type RepoFile } from "./github";
 import { filePathFor, renderBook, slugify } from "./render";
 import { type HighlightRow, Store } from "./store";
@@ -60,6 +61,8 @@ export interface SyncResult {
 	newHighlights: number;
 	changedBooks: string[];
 	commit: string | null;
+	/** Highlights embedded for meaning search this run. */
+	indexed: number;
 	errors: string[];
 }
 
@@ -202,6 +205,7 @@ export async function runSync(
 		newHighlights: 0,
 		changedBooks: [],
 		commit: null,
+		indexed: 0,
 		errors: [],
 	};
 
@@ -289,6 +293,13 @@ export async function runSync(
 	} catch (error) {
 		if (result.status === "ok") result.status = "partial";
 		result.errors.push(`Commit: ${describe(error)}`);
+	}
+
+	try {
+		result.indexed = (await indexPending(env))?.embedded ?? 0;
+	} catch (error) {
+		if (result.status === "ok") result.status = "partial";
+		result.errors.push(`Search index: ${describe(error)}`);
 	}
 
 	await store.finishRun(

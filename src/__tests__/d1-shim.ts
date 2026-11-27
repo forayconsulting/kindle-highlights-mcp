@@ -3,19 +3,19 @@
  * A D1Database stand-in over node:sqlite, so Store's SQL and the sync job
  * run for real in tests. Covers only what Store uses.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
 type Params = (string | number | null)[];
 
 export function createD1(): D1Database {
 	const db = new DatabaseSync(":memory:");
-	db.exec(
-		readFileSync(
-			new URL("../../migrations/0001_init.sql", import.meta.url),
-			"utf8",
-		),
-	);
+	const migrations = new URL("../../migrations/", import.meta.url);
+	for (const file of readdirSync(migrations).sort()) {
+		if (file.endsWith(".sql")) {
+			db.exec(readFileSync(new URL(file, migrations), "utf8"));
+		}
+	}
 
 	const statement = (sql: string, params: Params = []) => ({
 		bind: (...values: Params) => statement(sql, values),

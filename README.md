@@ -23,13 +23,32 @@ The server has run against a real amazon.com account, both from a laptop and fro
 
 The fetch-proxy Container path is built but has only been run locally against fakes.
 
+### Other endpoints tested
+
+`npm run explore` sends read-only requests to other Amazon endpoints and prints PASS or FAIL for each. The server does not use these yet. Results from one amazon.com account on 2026-11-26, with cookies minted from the refresh token:
+
+| Endpoint | Result | What it returns |
+|---|---|---|
+| `www.amazon.com/kindle/reading/insights/data` | Works | Daily and weekly reading streaks, titles read with dates, achievements |
+| Extra `startReading` fields | Works | `lastPageReadData` (device, position, time), `metadataUrl`, `clippingLimit` |
+| The file at `metadataUrl` | Works | Start and end positions, book size, authors. No table of contents for the book tested. |
+| `read.amazon.com/notebook?asin=` | Works | HTML with each highlight's color and location |
+| `www.amazon.com/hz/mycd/digital-console/ajax`, activity `GetContentOwnershipData` | Works | Every owned book and personal document, with read status and date acquired |
+| `cde-ta-g7g.amazon.com/FionaCDEServiceEngine/sidecar` | Works with a signed device request | A binary sync file that holds the last read position |
+| `todo-ta-g7g.amazon.com/FionaTodoListProxy/syncMetaData` | Answers, but the list is empty for this device | Nothing useful |
+
+The script does not call anything that changes the account, sends a document, or returns book text.
+
 ## Tools
 
 | Tool | What it does |
 |---|---|
 | `list_books` | Books that have highlights or notes |
 | `get_highlights` | Every highlight and note for one book, by title or ASIN |
-| `search_highlights` | Search highlight and note text across all books |
+| `search_highlights` | Search highlight and note text across all books, by exact words |
+| `semantic_search` | Find highlights by meaning. Needs the optional search index below. |
+| `resurface_highlights` | A random handful of old highlights, or ones made on this day in earlier years |
+| `export_book` | One book as CSV, an Anki import file, or an Obsidian note |
 | `recent_highlights` | Highlights made in the last N days |
 | `sync_now` | Fetch from Amazon now (default: 10 most recently read books) |
 | `sync_status` | Last runs, their results, and totals |
@@ -84,6 +103,27 @@ This part is optional. Without it, sync fills the database and the tools work.
 
 `GITHUB_BRANCH` is `main`, so sync commits go straight to the default branch. Point it at a test branch for the first runs if you want to read the output first. Each `<book>/highlights.md` file is overwritten on every sync, so keep hand-written notes in a different file.
 
+### Search by meaning
+
+This part is optional. It uses Workers AI and Vectorize, and both fit the free plan for a personal library.
+
+1. Create the index and its book filter:
+
+   ```bash
+   npx wrangler vectorize create kindle-highlights --dimensions=1024 --metric=cosine
+   npx wrangler vectorize create-metadata-index kindle-highlights --property-name=asin --type=string
+   ```
+
+2. Uncomment the `ai` and `vectorize` blocks in `wrangler.jsonc`.
+3. Run `npx wrangler d1 migrations apply kindle-highlights --remote`, then deploy.
+4. Index what is already stored. Repeat this call until `pending` is 0: `curl -X POST "https://<worker>/debug/<API_SECRET>/embed?max=64"`.
+
+After that, each sync indexes up to 64 new or changed highlights. `sync_status` shows how many are indexed. The model is `@cf/qwen/qwen3-embedding-0.6b`.
+
+### Exports
+
+`https://<worker>/debug/<API_SECRET>/export?format=csv` downloads every highlight as a CSV with the columns Highlight, Title, Author, Note, Location, Date. `format=anki` gives a tab-separated file for Anki's text import. `format=obsidian&book=<asin>` gives one book as a note with YAML properties. Add `&book=<asin>` to the first two to get one book.
+
 ### If the probe says `read.amazon.com` blocks the Worker
 
 In `wrangler.jsonc`, uncomment the `FETCH_PROXY` binding, the `v2` migration, and the `containers` block. Then run `npx wrangler deploy`. This needs Docker running and the Workers Paid plan. Requests to `read.amazon.com` then go through `container/proxy.py`, which sends them with a Chrome TLS fingerprint. Check with `/debug/<API_SECRET>/probe?transport=proxy`.
@@ -125,6 +165,7 @@ npm run spike -- --proxy http://localhost:8080
 npm test          # vitest
 npm run lint      # biome
 npm run typecheck
+npm run explore   # read-only test of other Amazon endpoints
 npm run dev       # wrangler dev. Copy .dev.vars.example to .dev.vars first.
 ```
 

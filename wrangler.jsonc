@@ -40,6 +40,14 @@
   //   { "class_name": "FetchProxy", "image": "./container/Dockerfile", "max_instances": 1 }
   // ],
 
+  // Optional: search by meaning. Uncomment after creating the index:
+  //   wrangler vectorize create kindle-highlights --dimensions=1024 --metric=cosine
+  //   wrangler vectorize create-metadata-index kindle-highlights --property-name=asin --type=string
+  // "ai": { "binding": "AI", "remote": true },
+  // "vectorize": [
+  //   { "binding": "VECTORIZE", "index_name": "kindle-highlights", "remote": true }
+  // ],
+
   // 10:17 UTC daily (early morning US Pacific)
   "triggers": { "crons": ["17 10 * * *"] },
 

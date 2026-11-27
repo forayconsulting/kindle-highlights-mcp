@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Transport } from "../amazon/transport";
+import { searchReady } from "../embed";
 import { Store, type SyncRunRow } from "../store";
 import { runSync, type SyncResult } from "../sync";
 
@@ -22,6 +23,7 @@ export function formatSyncResult(r: SyncResult): string {
 		lines.push(`Changed: ${r.changedBooks.join("; ")}`);
 	}
 	if (r.commit) lines.push(`Committed to repo: ${r.commit.slice(0, 7)}`);
+	if (r.indexed) lines.push(`Indexed for meaning search: ${r.indexed}`);
 	if (r.errors.length) {
 		lines.push("Errors:", ...r.errors.slice(0, 10).map((e) => `  ${e}`));
 	}
@@ -30,12 +32,17 @@ export function formatSyncResult(r: SyncResult): string {
 
 export function formatSyncStatus(
 	runs: SyncRunRow[],
-	totals: { books: number; highlights: number },
+	totals: { books: number; highlights: number; indexed?: number },
 	timeZone: string,
 ): string {
 	const lines = [
 		`Stored: ${totals.highlights} highlight${totals.highlights === 1 ? "" : "s"} across ${totals.books} book${totals.books === 1 ? "" : "s"}`,
 	];
+	if (totals.indexed !== undefined) {
+		lines.push(
+			`Indexed for meaning search: ${totals.indexed} of ${totals.highlights}`,
+		);
+	}
 	if (!runs.length) return [...lines, "No sync has run yet"].join("\n");
 	lines.push("Recent runs:");
 	for (const run of runs) {
@@ -113,13 +120,14 @@ export function registerSyncTools(
 		async () => {
 			try {
 				const store = new Store(env.DB);
+				const { indexed, ...counts } = await store.totals();
 				return {
 					content: [
 						{
 							type: "text" as const,
 							text: formatSyncStatus(
 								await store.lastRuns(5),
-								await store.totals(),
+								searchReady(env) ? { ...counts, indexed } : counts,
 								env.TIMEZONE,
 							),
 						},

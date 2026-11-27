@@ -12,7 +12,10 @@ import {
 	takeLoginSession,
 } from "./auth";
 import { transportFor } from "./container";
+import { INDEX_BATCH, indexPending } from "./embed";
+import { exportFile, exportHighlights, isExportFormat } from "./export";
 import { probe } from "./probe";
+import { Store } from "./store";
 import { runSync } from "./sync";
 import { registerHighlightTools } from "./tools/highlights";
 import { registerSyncTools } from "./tools/sync";
@@ -125,6 +128,41 @@ async function handleDebug(
 			return json(
 				await runSync(env, { maxBooks: max, transport: transportFor(env) }),
 			);
+		}
+		if (action === "export" && request.method === "GET") {
+			const format = url.searchParams.get("format") ?? "csv";
+			if (!isExportFormat(format)) {
+				return json({ error: "format must be csv, anki, or obsidian" }, 400);
+			}
+			const store = new Store(env.DB);
+			const asin = url.searchParams.get("book");
+			const book = asin ? await store.book(asin) : null;
+			if (asin && !book) return json({ error: `No book ${asin}` }, 404);
+			if (format === "obsidian" && !book) {
+				return json({ error: "obsidian needs ?book=<asin>" }, 400);
+			}
+			const file = exportFile(format, book?.slug);
+			return new Response(
+				exportHighlights(
+					format,
+					await store.highlightsWithBook(book?.asin),
+					env.TIMEZONE,
+					book ?? undefined,
+				),
+				{
+					headers: {
+						"Content-Type": file.type,
+						"Content-Disposition": `attachment; filename="${file.name}"`,
+					},
+				},
+			);
+		}
+		if (action === "embed" && request.method === "POST") {
+			const max = Number(url.searchParams.get("max")) || INDEX_BATCH;
+			const result = await indexPending(env, Math.min(max, 500));
+			return result
+				? json(result)
+				: json({ error: "AI and VECTORIZE bindings are not set" }, 400);
 		}
 		if (action === "device-token" && request.method === "POST") {
 			const token = (await request.text()).trim();
